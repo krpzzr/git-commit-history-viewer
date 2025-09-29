@@ -1,103 +1,134 @@
-import Image from "next/image";
+import { formatDistanceToNow } from 'date-fns';
+import { enUS } from 'date-fns/locale';
 
-export default function Home() {
+type GitHubCommit = {
+  sha: string;
+  html_url: string;
+  commit: {
+    message: string;
+    author: {
+      name: string;
+      email: string;
+      date: string;
+    };
+  };
+  author: {
+    login: string;
+    avatar_url: string;
+    html_url: string;
+  } | null;
+};
+
+
+async function fetchCommits(): Promise<GitHubCommit[]> {
+  const token = process.env.GITHUB_TOKEN || '';
+  
+  console.log('Fetching commits from repo: krpzzr/git-commit-history-viewer');
+
+  const url = "https://api.github.com/repos/krpzzr/git-commit-history-viewer/commits?sha=main&per_page=20";
+  
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Authorization": `Bearer ${token}`
+      },
+      next: { revalidate: 300 },
+    });
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('Error response body:', errorBody);
+      throw new Error(`GitHub API error: ${response.status} - ${response.statusText}`);
+    }
+
+    const commits = await response.json();
+    console.log(`Successfully fetched ${commits.length} commits`);
+    return commits;
+
+  } catch (error) {
+    console.error('Fetch error:', error);
+    throw error;
+  }
+}
+
+function formatDate(iso: string): string {
+  try {
+    return formatDistanceToNow(new Date(iso), { 
+      addSuffix: true, 
+      locale: enUS 
+    });
+  } catch {
+    return iso;
+  }
+}
+
+export default async function Home() {
+  let commits: GitHubCommit[] = [];
+  let errorMessage: string | null = null;
+
+  try {
+    commits = await fetchCommits();
+  } catch (error) {
+    errorMessage = (error as Error).message;
+  }
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="font-sans min-h-screen p-8 sm:p-20">
+      <main className="flex flex-col gap-6 max-w-3xl mx-auto">
+        <h1 className="text-2xl font-semibold tracking-[-.01em]">Commit history (main)</h1>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+        {errorMessage ? (
+          <div className="rounded-md border border-black/[.08] dark:border-white/[.145] p-4 text-sm">
+            Failed to load commits. {errorMessage}
+          </div>
+        ) : commits.length === 0 ? (
+          <div className="text-sm text-black/70 dark:text-white/70">No commits found.</div>
+        ) : (
+          <ul className="flex flex-col divide-y divide-black/[.08] dark:divide-white/[.145] bg-black/[.02] dark:bg-white/[.03] rounded-lg border border-black/[.08] dark:border-white/[.145]">
+            {commits.map((c) => {
+              const authorName = c.commit.author?.name ?? c.author?.login ?? "Unknown";
+              const messageFirstLine = c.commit.message.split("\n")[0];
+              return (
+                <li key={c.sha} className="p-4 flex flex-col gap-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <a
+                      href={c.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium hover:underline"
+                    >
+                      {messageFirstLine}
+                    </a>
+                    <code className="text-xs bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded">
+                      {c.sha.substring(0, 7)}
+                    </code>
+                  </div>
+                  <div className="text-xs text-black/70 dark:text-white/70 flex items-center gap-2">
+                    <span>{authorName}</span>
+                    <span>•</span>
+                    <span>{formatDate(c.commit.author.date)}</span>
+                    {c.author?.login ? (
+                      <a
+                        href={c.author.html_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline"
+                      >
+                        @{c.author.login}
+                      </a>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
