@@ -34,6 +34,7 @@ export function CommitItem({ commit, className, style, as = 'li' }: CommitItemPr
   };
 
   const authorName = commit.commit.author?.name ?? commit.author?.login ?? "Unknown";
+  const avatarUrl = commit.author?.avatar_url ?? undefined;
   const messageFirstLine = commit.commit.message.split("\n")[0];
 
   const Element = as as any;
@@ -54,6 +55,15 @@ export function CommitItem({ commit, className, style, as = 'li' }: CommitItemPr
         </code>
       </div>
       <div className="text-xs text-black/70 dark:text-white/70 flex items-center gap-2">
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={commit.author?.login || authorName}
+            className="h-4 w-4 rounded-full border border-black/[.08] dark:border-white/[.145]"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : null}
         <span>{authorName}</span>
         <span>•</span>
         <span>{formatDate(commit.commit.author.date)}</span>

@@ -5,6 +5,7 @@ import { Virtuoso } from 'react-virtuoso';
 import { CommitItem } from '../components/CommitItem';
 import { RefreshButton } from '../components/RefreshButton';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { SearchButton } from '../components/SearchButton';
 
 import { GitHubCommit } from '@/types';
 
@@ -30,6 +31,21 @@ async function fetchCommits(page = 1, perPage = 20): Promise<CommitsResponse> {
   return data as CommitsResponse;
 }
 
+async function searchCommits(query: string, page = 1, perPage = 20): Promise<CommitsResponse> {
+  const params = new URLSearchParams({ q: query, page: String(page), per_page: String(perPage) });
+  const response = await fetch(`/api/commits/search?${params.toString()}`, {
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error || `HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data as CommitsResponse;
+}
+
 export default function Home() {
   const [commits, setCommits] = useState<GitHubCommit[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -37,6 +53,9 @@ export default function Home() {
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [query, setQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSearchSubmitting, setIsSearchSubmitting] = useState(false);
 
   const PER_PAGE = 20;
 
@@ -70,6 +89,8 @@ export default function Home() {
     }
 
     try {
+      setQuery(''); // leave search mode
+      setIsSearching(false);
       setCommits(newCommits);
       setErrorMessage(null);
       setPage(1);
@@ -88,7 +109,9 @@ export default function Home() {
     setIsLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const res = await fetchCommits(nextPage, PER_PAGE);
+      const res = query && isSearching
+        ? await searchCommits(query, nextPage, PER_PAGE)
+        : await fetchCommits(nextPage, PER_PAGE);
       setCommits(prev => [...prev, ...res.commits]);
       setHasNextPage(res.hasNextPage);
       setPage(nextPage);
@@ -100,11 +123,68 @@ export default function Home() {
     }
   };
 
-  if (isInitialLoading) {
-    return (
-      <div className="font-sans min-h-screen p-8 sm:p-20">
-        <main className="flex flex-col gap-6 max-w-3xl mx-auto">
+  const onSubmitSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    setIsSearchSubmitting(true);
+    if (!q) {
+      // Exit search mode → back to regular list page 1
+      try {
+        const first = await fetchCommits(1, PER_PAGE);
+        setCommits(first.commits);
+        setHasNextPage(first.hasNextPage);
+        setPage(1);
+        setIsSearching(false);
+        setErrorMessage(null);
+      } catch (err) {
+        setErrorMessage((err as Error).message);
+      } finally {
+        setIsSearchSubmitting(false);
+      }
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const result = await searchCommits(q, 1, PER_PAGE);
+      setCommits(result.commits);
+      setHasNextPage(result.hasNextPage);
+      setPage(1);
+      setErrorMessage(null);
+    } catch (err) {
+      setErrorMessage((err as Error).message);
+    } finally {
+      setIsSearchSubmitting(false);
+    }
+  };
+
+  const disabledControls = isInitialLoading || isSearchSubmitting;
+
+  return (
+    <div className="font-sans min-h-screen p-8 sm:p-20">
+      <main className="flex flex-col gap-6 max-w-3xl mx-auto">
+        <div className="self-end"><ThemeToggle /></div>
+
+        <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row">
           <h1 className="text-2xl font-semibold tracking-[-.01em]">Commit history (main)</h1>
+          <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0 justify-between sm:justify-end">
+            <RefreshButton onRefresh={handleRefresh} disabled={disabledControls} />
+          </div>
+        </div>
+
+        <form onSubmit={onSubmitSearch} className="flex items-center gap-2 w-full">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search commits by message..."
+            className="flex-1 px-3 py-2 rounded-md border border-black/[.08] dark:border-white/[.145] bg-white dark:bg-white/[.03] text-sm"
+            disabled={disabledControls}
+          />
+          <SearchButton pending={isSearchSubmitting} disabled={disabledControls} />
+        </form>
+
+        {isInitialLoading ? (
           <div className="flex items-center justify-center py-8">
             <div className="flex items-center gap-2 text-sm text-black/70 dark:text-white/70">
               <svg 
@@ -130,23 +210,7 @@ export default function Home() {
               Loading commits...
             </div>
           </div>
-        </main>
-      </div>
-    );
-  }
-
-  return (
-    <div className="font-sans min-h-screen p-8 sm:p-20">
-      <main className="flex flex-col gap-6 max-w-3xl mx-auto">
-        <div className="self-end"><ThemeToggle /></div>
-        <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row">
-          <h1 className="text-2xl font-semibold tracking-[-.01em]">Commit history (main)</h1>
-          <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0 justify-between sm:justify-end">
-            <RefreshButton onRefresh={handleRefresh} />
-          </div>
-        </div>
-
-        {errorMessage ? (
+        ) : errorMessage ? (
           <div className="rounded-md border border-black/[.08] dark:border-white/[.145] p-4 text-sm">
             Failed to load commits. {errorMessage}
           </div>
