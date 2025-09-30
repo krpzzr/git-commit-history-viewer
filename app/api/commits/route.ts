@@ -21,8 +21,8 @@ export async function GET() {
         "X-GitHub-Api-Version": "2022-11-28",
         "Authorization": `Bearer ${token}`
       },
-      // Use cache for initial load
-      next: { revalidate: 300 },
+      // Cache GitHub response briefly and tag it for revalidation
+      next: { revalidate: 300, tags: ['commits'] },
     });
 
     console.log('API: Response status:', response.status);
@@ -47,7 +47,14 @@ export async function GET() {
 
     const commits = await response.json();
     console.log(`API: Successfully fetched ${commits.length} commits`);
-    return NextResponse.json({ commits });
+    return NextResponse.json(
+      { commits },
+      {
+        headers: {
+          'Cache-Control': 'no-store'
+        }
+      }
+    );
 
   } catch (error) {
     console.error('API: Fetch error:', error);

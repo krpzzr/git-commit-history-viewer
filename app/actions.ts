@@ -1,6 +1,7 @@
 'use server';
 
 import { GitHubCommit } from "@/types";
+import { revalidateTag } from 'next/cache';
 
 export async function refreshCommits(): Promise<{ commits: GitHubCommit[]; error?: string }> {
   const token = process.env.GITHUB_TOKEN || '';
@@ -48,6 +49,8 @@ export async function refreshCommits(): Promise<{ commits: GitHubCommit[]; error
 
     const commits = await response.json();
     console.log(`Successfully refreshed ${commits.length} commits`);
+    // Invalidate cached data for commits so next load is fresh
+    revalidateTag('commits');
     return { commits };
 
   } catch (error) {

@@ -9,7 +9,7 @@ import { GitHubCommit } from '@/types';
 async function fetchCommits(): Promise<GitHubCommit[]> {
   try {
     const response = await fetch('/api/commits', {
-      cache: 'force-cache',
+      cache: 'no-store',
     });
 
     if (!response.ok) {
