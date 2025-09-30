@@ -1,23 +1,5 @@
-import { formatDistanceToNow } from 'date-fns';
-import { enUS } from 'date-fns/locale';
-
-type GitHubCommit = {
-  sha: string;
-  html_url: string;
-  commit: {
-    message: string;
-    author: {
-      name: string;
-      email: string;
-      date: string;
-    };
-  };
-  author: {
-    login: string;
-    avatar_url: string;
-    html_url: string;
-  } | null;
-};
+import { CommitItem } from '../components/CommitItem';
+import { GitHubCommit } from '@/types';
 
 
 async function fetchCommits(): Promise<GitHubCommit[]> {
@@ -56,17 +38,6 @@ async function fetchCommits(): Promise<GitHubCommit[]> {
   }
 }
 
-function formatDate(iso: string): string {
-  try {
-    return formatDistanceToNow(new Date(iso), { 
-      addSuffix: true, 
-      locale: enUS 
-    });
-  } catch {
-    return iso;
-  }
-}
-
 export default async function Home() {
   let commits: GitHubCommit[] = [];
   let errorMessage: string | null = null;
@@ -90,42 +61,9 @@ export default async function Home() {
           <div className="text-sm text-black/70 dark:text-white/70">No commits found.</div>
         ) : (
           <ul className="flex flex-col divide-y divide-black/[.08] dark:divide-white/[.145] bg-black/[.02] dark:bg-white/[.03] rounded-lg border border-black/[.08] dark:border-white/[.145]">
-            {commits.map((c) => {
-              const authorName = c.commit.author?.name ?? c.author?.login ?? "Unknown";
-              const messageFirstLine = c.commit.message.split("\n")[0];
-              return (
-                <li key={c.sha} className="p-4 flex flex-col gap-1">
-                  <div className="flex items-center justify-between gap-3">
-                    <a
-                      href={c.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium hover:underline"
-                    >
-                      {messageFirstLine}
-                    </a>
-                    <code className="text-xs bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded">
-                      {c.sha.substring(0, 7)}
-                    </code>
-                  </div>
-                  <div className="text-xs text-black/70 dark:text-white/70 flex items-center gap-2">
-                    <span>{authorName}</span>
-                    <span>•</span>
-                    <span>{formatDate(c.commit.author.date)}</span>
-                    {c.author?.login ? (
-                      <a
-                        href={c.author.html_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline"
-                      >
-                        @{c.author.login}
-                      </a>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
+            {commits.map((commit) => (
+              <CommitItem key={commit.sha} commit={commit} />
+            ))}
           </ul>
         )}
       </main>
