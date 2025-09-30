@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { CommitItem } from '../components/CommitItem';
 import { RefreshButton } from '../components/RefreshButton';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 import { GitHubCommit } from '@/types';
 
@@ -137,9 +138,10 @@ export default function Home() {
   return (
     <div className="font-sans min-h-screen p-8 sm:p-20">
       <main className="flex flex-col gap-6 max-w-3xl mx-auto">
-        <div className="flex items-center justify-between">
+        <div className="self-end"><ThemeToggle /></div>
+        <div className="flex items-start sm:items-center justify-between flex-col sm:flex-row">
           <h1 className="text-2xl font-semibold tracking-[-.01em]">Commit history (main)</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto mt-4 sm:mt-0 justify-between sm:justify-end">
             <RefreshButton onRefresh={handleRefresh} />
           </div>
         </div>
