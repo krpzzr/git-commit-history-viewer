@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNowStrict } from 'date-fns';
 
 import { GitHubCommit } from '@/types';
 
@@ -27,7 +27,10 @@ export function CommitItem({ commit, className, style, as = 'li' }: CommitItemPr
 
   const formatDate = (iso: string): string => {
     try {
-      return formatDistanceToNow(new Date(iso), { addSuffix: true });
+      return formatDistanceToNowStrict(new Date(iso), {
+        addSuffix: true,
+        roundingMethod: 'floor',
+      });
     } catch {
       return iso;
     }
@@ -36,6 +39,9 @@ export function CommitItem({ commit, className, style, as = 'li' }: CommitItemPr
   const authorName = commit.commit.author?.name ?? commit.author?.login ?? "Unknown";
   const avatarUrl = commit.author?.avatar_url ?? undefined;
   const messageFirstLine = commit.commit.message.split("\n")[0];
+
+  // Prefer committer date if available (closer to GitHub UI), fallback to author date
+  const displayIso = (commit as any)?.commit?.committer?.date || commit.commit.author.date;
 
   const Element = as as any;
 
@@ -66,7 +72,7 @@ export function CommitItem({ commit, className, style, as = 'li' }: CommitItemPr
         ) : null}
         <span>{authorName}</span>
         <span>•</span>
-        <span>{formatDate(commit.commit.author.date)}</span>
+        <span>{formatDate(displayIso)}</span>
         {commit.author?.login ? (
           <a
             href={commit.author.html_url}
