@@ -5,11 +5,16 @@ import { formatDistanceToNow } from 'date-fns';
 
 import { GitHubCommit } from '@/types';
 
+type RootElementTag = 'li' | 'div';
+
 interface CommitItemProps {
   commit: GitHubCommit;
+  className?: string;
+  style?: React.CSSProperties;
+  as?: RootElementTag;
 }
 
-export function CommitItem({ commit }: CommitItemProps) {
+export function CommitItem({ commit, className, style, as = 'li' }: CommitItemProps) {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -31,8 +36,10 @@ export function CommitItem({ commit }: CommitItemProps) {
   const authorName = commit.commit.author?.name ?? commit.author?.login ?? "Unknown";
   const messageFirstLine = commit.commit.message.split("\n")[0];
 
+  const Element = as as any;
+
   return (
-    <li className="p-4 flex flex-col gap-1">
+    <Element className={`p-4 flex flex-col gap-1 ${className ?? ''}`.trim()} style={style}>
       <div className="flex items-center justify-between gap-3">
         <a
           href={commit.html_url}
@@ -61,6 +68,6 @@ export function CommitItem({ commit }: CommitItemProps) {
           </a>
         ) : null}
       </div>
-    </li>
+    </Element>
   );
 }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: Request) {
   const token = process.env.GITHUB_TOKEN || '';
   
   if (!token) {
@@ -12,7 +12,11 @@ export async function GET() {
   
   console.log('API: Fetching commits from repo: krpzzr/git-commit-history-viewer');
 
-  const url = "https://api.github.com/repos/krpzzr/git-commit-history-viewer/commits?sha=main&per_page=20";
+  const { searchParams } = new URL(request.url);
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+  const perPage = Math.min(100, Math.max(1, parseInt(searchParams.get('per_page') || '20', 10)));
+
+  const url = `https://api.github.com/repos/krpzzr/git-commit-history-viewer/commits?sha=main&per_page=${perPage}&page=${page}`;
   
   try {
     const response = await fetch(url, {
@@ -45,10 +49,13 @@ export async function GET() {
       );
     }
 
+    const link = response.headers.get('link') || '';
+    const hasNextPage = /<([^>]+)>; rel="next"/.test(link);
+
     const commits = await response.json();
-    console.log(`API: Successfully fetched ${commits.length} commits`);
+    console.log(`API: Successfully fetched ${commits.length} commits (page ${page})`);
     return NextResponse.json(
-      { commits },
+      { commits, page, per_page: perPage, hasNextPage },
       {
         headers: {
           'Cache-Control': 'no-store'

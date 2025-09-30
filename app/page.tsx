@@ -1,42 +1,52 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { CommitItem } from '../components/CommitItem';
 import { RefreshButton } from '../components/RefreshButton';
 
 import { GitHubCommit } from '@/types';
 
-async function fetchCommits(): Promise<GitHubCommit[]> {
-  try {
-    const response = await fetch('/api/commits', {
-      cache: 'no-store',
-    });
+type CommitsResponse = {
+  commits: GitHubCommit[];
+  page: number;
+  per_page: number;
+  hasNextPage: boolean;
+};
 
-    if (!response.ok) {
-      const data = await response.json();
-      throw new Error(data.error || `HTTP error! status: ${response.status}`);
-    }
+async function fetchCommits(page = 1, perPage = 20): Promise<CommitsResponse> {
+  const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+  const response = await fetch(`/api/commits?${params.toString()}`, {
+    cache: 'no-store',
+  });
 
+  if (!response.ok) {
     const data = await response.json();
-    return data.commits || [];
-
-  } catch (error) {
-    console.error('Client fetch error:', error);
-    throw error;
+    throw new Error(data.error || `HTTP error! status: ${response.status}`);
   }
+
+  const data = await response.json();
+  return data as CommitsResponse;
 }
 
 export default function Home() {
   const [commits, setCommits] = useState<GitHubCommit[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  const PER_PAGE = 20;
 
   // Initial data fetch
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const initialCommits = await fetchCommits();
-        setCommits(initialCommits);
+        const initial = await fetchCommits(1, PER_PAGE);
+        setCommits(initial.commits);
+        setHasNextPage(initial.hasNextPage);
+        setPage(1);
         setErrorMessage(null);
       } catch (error) {
         setErrorMessage((error as Error).message);
@@ -48,14 +58,44 @@ export default function Home() {
     loadInitialData();
   }, []);
 
-  // Handle refresh
-  const handleRefresh = (newCommits: GitHubCommit[], error?: string) => {
+  // Handle refresh: reset to page 1 and re-read pagination from API
+  const handleRefresh = async (newCommits: GitHubCommit[], error?: string) => {
     if (error) {
       setErrorMessage(error);
       setCommits([]);
-    } else {
+      setHasNextPage(false);
+      setPage(1);
+      return;
+    }
+
+    try {
       setCommits(newCommits);
       setErrorMessage(null);
+      setPage(1);
+      setHasNextPage(newCommits.length >= PER_PAGE);
+
+      const fresh = await fetchCommits(1, PER_PAGE);
+      setCommits(fresh.commits);
+      setHasNextPage(fresh.hasNextPage);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadMore = async () => {
+    if (isLoadingMore || !hasNextPage) return;
+    setIsLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const res = await fetchCommits(nextPage, PER_PAGE);
+      setCommits(prev => [...prev, ...res.commits]);
+      setHasNextPage(res.hasNextPage);
+      setPage(nextPage);
+    } catch (e) {
+      console.error(e);
+      setErrorMessage((e as Error).message);
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -111,11 +151,39 @@ export default function Home() {
         ) : commits.length === 0 ? (
           <div className="text-sm text-black/70 dark:text-white/70">No commits found.</div>
         ) : (
-          <ul className="flex flex-col divide-y divide-black/[.08] dark:divide-white/[.145] bg-black/[.02] dark:bg-white/[.03] rounded-lg border border-black/[.08] dark:border-white/[.145]">
-            {commits.map((commit) => (
-              <CommitItem key={commit.sha} commit={commit} />
-            ))}
-          </ul>
+          <div className="rounded-lg border border-black/[.08] dark:border-white/[.145] bg-black/[.02] dark:bg-white/[.03]">
+            <Virtuoso
+              useWindowScroll
+              data={commits}
+              overscan={200}
+              itemContent={(index, commit) => (
+                <CommitItem
+                  as="div"
+                  commit={commit}
+                  className={`${index === 0 ? '' : 'border-t border-black/[.08] dark:border-white/[.145]'}`}
+                />
+              )}
+              components={{
+                Footer: () => (
+                  hasNextPage ? (
+                    <div className="flex justify-center py-3">
+                      <button
+                        onClick={loadMore}
+                        disabled={isLoadingMore}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-md border transition-all duration-200 ease-in-out hover:cursor-pointer ${
+                          isLoadingMore
+                            ? 'bg-white border-black/[.08] text-black disabled:opacity-70 cursor-not-allowed'
+                            : 'bg-white border-black/[.08] hover:bg-black/[.02] hover:border-black/[.12] text-black dark:bg-white/[.03] dark:border-white/[.145] dark:hover:bg-white/[.06] dark:hover:border-white/[.2] dark:text-white'
+                        }`}
+                      >
+                        {isLoadingMore ? 'Loading…' : 'Load more'}
+                      </button>
+                    </div>
+                  ) : null
+                ),
+              }}
+            />
+          </div>
         )}
       </main>
     </div>
