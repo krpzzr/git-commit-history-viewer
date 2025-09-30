@@ -99,7 +99,9 @@ export default function Home() {
       <main className="flex flex-col gap-6 max-w-3xl mx-auto">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-[-.01em]">Commit history (main)</h1>
-          <RefreshButton onRefresh={handleRefresh} />
+          <div className="flex items-center gap-2">
+            <RefreshButton onRefresh={handleRefresh} />
+          </div>
         </div>
 
         {errorMessage ? (
